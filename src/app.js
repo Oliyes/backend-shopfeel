@@ -83,9 +83,46 @@ const customerInput = z.object({
 });
 const productInput = z.object({
   name: z.string().trim().min(1).max(200),
-  description: z.string().max(5000).nullable().optional(),
-  price_cents: z.number().int().nonnegative(),
-  is_active: z.union([z.literal(0), z.literal(1)]).optional()
+
+  description: z
+    .string()
+    .max(5000)
+    .nullable()
+    .optional(),
+
+  price_cents: z
+    .number()
+    .int()
+    .nonnegative(),
+
+  store_name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(150),
+
+  store_key: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100),
+
+  external_url: z
+    .string()
+    .url(),
+
+  image_url: z
+    .string()
+    .url()
+    .nullable()
+    .optional(),
+
+  is_active: z
+    .union([
+      z.literal(0),
+      z.literal(1),
+    ])
+    .optional(),
 });
 
 app.get('/health', async (_request, response) => {
@@ -177,6 +214,17 @@ app.delete('/api/me/favorites/:productId', authenticate, async (request, respons
 app.use('/api/admin', authenticate, requireAdmin);
 app.get('/api/admin/customers', async (_request, response, next) => {
   try { response.json({ customers: await db('customers').select('id', 'name', 'email', 'photo', 'email_verified', 'access_level', 'created_at', 'updated_at').orderBy('id') }); } catch (error) { next(error); }
+});
+app.get('/api/admin/products', async (_request, response, next) => {
+  try {
+    const products = await db('products')
+      .select('*')
+      .orderBy('id', 'desc');
+
+    response.json({ products });
+  } catch (error) {
+    next(error);
+  }
 });
 app.post('/api/admin/products', async (request, response, next) => {
   try {
