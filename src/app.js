@@ -6,7 +6,8 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
 import { mkdirSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomInt, createHash, timingSafeEqual } from 'node:crypto';
+import nodemailer from 'nodemailer';
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -92,6 +93,56 @@ const upload = multer({
     return callback(null, true);
   }
 });
+
+
+/* ========================================
+   RECUPERAÇÃO DE SENHA / E-MAIL
+======================================== */
+
+const createResetCodeHash = (code) =>
+  createHash('sha256')
+    .update(String(code))
+    .digest('hex');
+
+const compareResetCode = (code, storedHash) => {
+  if (!storedHash) return false;
+
+  const received = Buffer.from(
+    createResetCodeHash(code),
+    'hex'
+  );
+
+  const stored = Buffer.from(
+    storedHash,
+    'hex'
+  );
+
+  if (received.length !== stored.length) {
+    return false;
+  }
+
+  return timingSafeEqual(received, stored);
+};
+
+const getMailTransporter = () => {
+  if (
+    !env.smtpHost ||
+    !env.smtpUser ||
+    !env.smtpPass
+  ) {
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    host: env.smtpHost,
+    port: env.smtpPort,
+    secure: env.smtpSecure,
+    auth: {
+      user: env.smtpUser,
+      pass: env.smtpPass
+    }
+  });
+};
 
 
 /* ========================================
@@ -532,6 +583,229 @@ app.post(
 
     } catch (error) {
 
+      return next(error);
+    }
+  }
+);
+
+
+/* ========================================
+   RECUPERAÇÃO DE SENHA
+======================================== */
+
+app.post(
+  '/api/auth/forgot-password',
+  async (
+    request,
+    response,
+    next
+  ) => {
+    try {
+      const input =
+        z
+          .object({
+            email:
+              z
+                .string()
+                .trim()
+                .email()
+                .max(255)
+          })
+          .parse(request.body);
+
+      const normalizedEmail =
+        input.email.toLowerCase();
+
+      const customer =
+        await db('customers')
+          .where({
+            email: normalizedEmail
+          })
+          .first();
+
+      // Resposta propositalmente genérica para não revelar
+      // se um e-mail está ou não cadastrado no sistema.
+      if (!customer) {
+        return response.json({
+          message:
+            'Se o e-mail estiver cadastrado, você receberá um código de recuperação.'
+        });
+      }
+
+      const transporter =
+        getMailTransporter();
+
+      if (!transporter) {
+        return response
+          .status(503)
+          .json({
+            error:
+              'O envio de e-mail ainda não foi configurado no servidor.'
+          });
+      }
+
+      const code =
+        String(
+          randomInt(100000, 1000000)
+        );
+
+      const expiresAt =
+        new Date(
+          Date.now() +
+            env.passwordResetMinutes *
+              60 * 1000
+        );
+
+      await db('customers')
+        .where({
+          id: customer.id
+        })
+        .update({
+          password_reset_code_hash:
+            createResetCodeHash(code),
+          password_reset_expires_at:
+            expiresAt.toISOString(),
+          updated_at:
+            db.fn.now()
+        });
+
+      await transporter.sendMail({
+        from:
+          env.smtpFrom ||
+          env.smtpUser,
+        to:
+          customer.email,
+        subject:
+          'ShopFeel - Recuperação de senha',
+        text:
+          'Seu código de recuperação do ShopFeel é: ' +
+          code +
+          '. Ele expira em ' +
+          env.passwordResetMinutes +
+          ' minutos.',
+        html:
+          '<div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;padding:24px">' +
+          '<h2 style="color:#2D2926">ShopFeel</h2>' +
+          '<p>Recebemos uma solicitação para redefinir a senha da sua conta.</p>' +
+          '<p>Use o código abaixo no aplicativo:</p>' +
+          '<div style="font-size:30px;font-weight:700;letter-spacing:8px;padding:18px 0;color:#9B5DE5">' +
+          code +
+          '</div>' +
+          '<p>Este código expira em ' +
+          env.passwordResetMinutes +
+          ' minutos.</p>' +
+          '<p>Se você não solicitou a alteração, pode ignorar este e-mail.</p>' +
+          '</div>'
+      });
+
+      return response.json({
+        message:
+          'Se o e-mail estiver cadastrado, você receberá um código de recuperação.'
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+);
+
+
+app.post(
+  '/api/auth/reset-password',
+  async (
+    request,
+    response,
+    next
+  ) => {
+    try {
+      const input =
+        z
+          .object({
+            email:
+              z
+                .string()
+                .trim()
+                .email()
+                .max(255),
+            code:
+              z
+                .string()
+                .trim()
+                .regex(/^\\d{6}$/),
+            password:
+              z
+                .string()
+                .min(8)
+                .max(128)
+          })
+          .parse(request.body);
+
+      const customer =
+        await db('customers')
+          .where({
+            email:
+              input.email.toLowerCase()
+          })
+          .first();
+
+      if (
+        !customer ||
+        !customer.password_reset_code_hash ||
+        !customer.password_reset_expires_at
+      ) {
+        return response
+          .status(400)
+          .json({
+            error:
+              'Código inválido ou expirado.'
+          });
+      }
+
+      const expiresAt =
+        new Date(
+          customer.password_reset_expires_at
+        ).getTime();
+
+      if (
+        !Number.isFinite(expiresAt) ||
+        Date.now() > expiresAt ||
+        !compareResetCode(
+          input.code,
+          customer.password_reset_code_hash
+        )
+      ) {
+        return response
+          .status(400)
+          .json({
+            error:
+              'Código inválido ou expirado.'
+          });
+      }
+
+      const password =
+        await bcrypt.hash(
+          input.password,
+          12
+        );
+
+      await db('customers')
+        .where({
+          id: customer.id
+        })
+        .update({
+          password,
+          password_reset_code_hash:
+            null,
+          password_reset_expires_at:
+            null,
+          updated_at:
+            db.fn.now()
+        });
+
+      return response.json({
+        message:
+          'Senha alterada com sucesso.'
+      });
+    } catch (error) {
       return next(error);
     }
   }
