@@ -730,7 +730,7 @@ app.post(
               z
                 .string()
                 .trim()
-                .regex(/^\\d{6}$/),
+                .regex(/^\d{6}$/),
             password:
               z
                 .string()
