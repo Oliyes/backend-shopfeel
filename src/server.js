@@ -11,7 +11,15 @@ const allowedInterestCategories = [
   'Beleza',
   'Casa',
   'Livros',
-  'Games'
+  'Games',
+  'Arte & Criatividade',
+  'Papelaria & Escrita',
+  'Organização',
+  'Lazer & Passeios',
+  'Bem-estar & Relaxamento',
+  'Natureza & Plantas',
+  'Fotografia & Memórias',
+  'Presentes & Afeto'
 ];
 
 app.patch(
