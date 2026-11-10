@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import app from './app.js';
+import app, { authenticate, requireAdmin } from './app.js';
 import db from './db/connection.js';
 import env from './config/env.js';
 
@@ -24,6 +24,8 @@ const allowedInterestCategories = [
 
 app.patch(
   '/api/admin/products/:id/interest-category',
+  authenticate,
+  requireAdmin,
   async (request, response) => {
     try {
       const category = request.body?.interest_category;
