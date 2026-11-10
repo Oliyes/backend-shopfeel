@@ -223,7 +223,7 @@ const signToken = (
    AUTENTICAÇÃO
 ======================================== */
 
-const authenticate = async (
+export const authenticate = async (
   request,
   response,
   next
@@ -299,7 +299,7 @@ const authenticate = async (
 };
 
 
-const requireAdmin = (
+export const requireAdmin = (
   request,
   response,
   next
