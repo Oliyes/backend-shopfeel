@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
-import { test, after } from 'node:test';
+import { test, before, after } from 'node:test';
 import request from 'supertest';
 import app from '../src/app.js';
 import db from '../src/db/connection.js';
+
+before(async () => {
+  // Os testes usam um banco isolado; as tabelas precisam existir antes das rotas.
+  await db.migrate.latest();
+});
 
 test('health endpoint responds', async () => {
   const response = await request(app).get('/health');
