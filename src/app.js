@@ -156,7 +156,10 @@ app.use(helmet());
 
 app.use(
   cors({
-    origin: env.webOrigin
+    origin: [
+      env.webOrigin,
+      'https://shopfeel-web-cxc6hsf7cubpbdcw.brazilsouth-01.azurewebsites.net'
+    ]
   })
 );
 
