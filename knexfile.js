@@ -34,11 +34,20 @@ const sqlite = {
 const postgres = {
   client: 'pg',
   connection: () => {
-    if (!process.env.DATABASE_URL) {
-      throw new Error('DATABASE_URL é obrigatória quando DATABASE_CLIENT=pg.');
+    const url = process.env.DATABASE_URL;
+    if (!url && !['PGHOST', 'PGUSER', 'PGPASSWORD', 'PGDATABASE'].every((name) => process.env[name])) {
+      throw new Error('Defina DATABASE_URL ou PGHOST, PGUSER, PGPASSWORD e PGDATABASE para PostgreSQL.');
     }
     return {
-      connectionString: process.env.DATABASE_URL,
+      ...(url
+        ? { connectionString: url }
+        : {
+            host: process.env.PGHOST,
+            port: Number(process.env.PGPORT || 5432),
+            user: process.env.PGUSER,
+            password: process.env.PGPASSWORD,
+            database: process.env.PGDATABASE
+          }),
       ssl: { rejectUnauthorized: true }
     };
   },
