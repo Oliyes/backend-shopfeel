@@ -2,22 +2,22 @@ import 'dotenv/config';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
-const database = process.env.DATABASE_PATH ?? './data/shopfeel.sqlite';
-// O banco de produção pode ficar fora da pasta publicada, por exemplo /home/data/.
-if (database !== ':memory:') {
-  mkdirSync(dirname(resolve(database)), { recursive: true });
+const databaseClient = (process.env.DATABASE_CLIENT ?? 'sqlite').toLowerCase();
+
+const sqliteDatabase = process.env.DATABASE_PATH ?? './data/shopfeel.sqlite';
+
+if (sqliteDatabase !== ':memory:' && databaseClient !== 'pg') {
+  mkdirSync(dirname(resolve(sqliteDatabase)), { recursive: true });
 }
 
-// WAL permanece em desenvolvimento; no Azure com /home compartilhado,
-// use SQLITE_JOURNAL_MODE=DELETE para evitar WAL em filesystem de rede.
 const journalMode = (process.env.SQLITE_JOURNAL_MODE || 'WAL').toUpperCase();
 if (!['WAL', 'DELETE', 'TRUNCATE'].includes(journalMode)) {
   throw new Error('SQLITE_JOURNAL_MODE inválido.');
 }
 
-const base = {
+const sqlite = {
   client: 'better-sqlite3',
-  connection: { filename: database },
+  connection: { filename: sqliteDatabase },
   useNullAsDefault: true,
   migrations: { directory: './migrations' },
   seeds: { directory: './seeds' },
@@ -31,8 +31,30 @@ const base = {
   }
 };
 
+const postgres = {
+  client: 'pg',
+  connection: () => {
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL é obrigatória quando DATABASE_CLIENT=pg.');
+    }
+    return {
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: true }
+    };
+  },
+  migrations: { directory: './migrations' },
+  seeds: { directory: './seeds' }
+};
+
+if (!['sqlite', 'pg'].includes(databaseClient)) {
+  throw new Error('DATABASE_CLIENT deve ser sqlite ou pg.');
+}
+
 export default {
-  development: base,
-  test: { ...base, connection: { filename: process.env.TEST_DATABASE_PATH ?? ':memory:' } },
-  production: base
+  development: databaseClient === 'pg' ? postgres : sqlite,
+  test: {
+    ...sqlite,
+    connection: { filename: process.env.TEST_DATABASE_PATH ?? ':memory:' }
+  },
+  production: databaseClient === 'pg' ? postgres : sqlite
 };
