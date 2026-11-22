@@ -154,14 +154,26 @@ const app = express();
 
 app.use(helmet());
 
+
+const mobileWebOrigins = (
+  process.env.MOBILE_WEB_ORIGINS || ""
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
     origin: [
       env.webOrigin,
-      'https://shopfeel-web-cxc6hsf7cubpbdcw.brazilsouth-01.azurewebsites.net'
-    ]
+      "https://shopfeel-web-cxc6hsf7cubpbdcw.brazilsouth-01.azurewebsites.net",
+      "http://localhost:8081",
+      "http://192.168.100.137:8081",
+      ...mobileWebOrigins,
+    ],
   })
 );
+
 
 app.use(
   express.json({
