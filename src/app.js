@@ -463,16 +463,20 @@ app.post(
         );
 
 
-      const [id] =
-        await db(
-          'customers'
-        ).insert({
-          ...input,
+      const registerQuery = db('customers').insert({
+        ...input,
+        password,
+        email_verified: 0
+      });
 
-          password,
+      if (db.client.config.client === 'pg') {
+        registerQuery.returning('id');
+      }
 
-          email_verified: 0
-        });
+      const [insertedCustomer] = await registerQuery;
+      const id = typeof insertedCustomer === 'object'
+        ? insertedCustomer.id
+        : insertedCustomer;
 
 
       const customer =
@@ -1441,18 +1445,19 @@ app.post(
         );
 
 
-      const [id] =
-        await db(
-          'products'
-        )
-          .insert({
+      const productInsertQuery = db('products').insert({
+        ...input,
+        user_id: request.customer.id
+      });
 
-            ...input,
+      if (db.client.config.client === 'pg') {
+        productInsertQuery.returning('id');
+      }
 
-            user_id:
-              request.customer.id
-
-          });
+      const [insertedProduct] = await productInsertQuery;
+      const id = typeof insertedProduct === 'object'
+        ? insertedProduct.id
+        : insertedProduct;
 
 
       const product =

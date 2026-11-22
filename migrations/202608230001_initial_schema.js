@@ -1,4 +1,8 @@
 export async function up(knex) {
+  // PostgreSQL exige conversão explícita do timestamp para os campos TEXT.
+  const timestampDefault = knex.client.config.client === 'pg'
+    ? knex.raw('CURRENT_TIMESTAMP::text')
+    : knex.raw('CURRENT_TIMESTAMP');
   await knex.schema.createTable('customers', (table) => {
     table.increments('id').primary();
     table.text('name').notNullable();
@@ -8,8 +12,8 @@ export async function up(knex) {
     table.text('photo');
     table.text('password');
     table.text('access_level').notNullable().defaultTo('USER');
-    table.text('created_at').notNullable().defaultTo(knex.raw('CURRENT_TIMESTAMP'));
-    table.text('updated_at').notNullable().defaultTo(knex.raw('CURRENT_TIMESTAMP'));
+    table.text('created_at').notNullable().defaultTo(timestampDefault);
+    table.text('updated_at').notNullable().defaultTo(timestampDefault);
     table.check("email_verified IN (0, 1)");
     table.check("access_level IN ('USER', 'ADMIN')");
     table.index('name', 'idx_customers_name');
@@ -23,8 +27,8 @@ export async function up(knex) {
     table.integer('price_cents').notNullable();
     table.integer('is_active').notNullable().defaultTo(1);
     table.integer('user_id').notNullable().references('id').inTable('customers').onDelete('RESTRICT');
-    table.text('created_at').notNullable().defaultTo(knex.raw('CURRENT_TIMESTAMP'));
-    table.text('updated_at').notNullable().defaultTo(knex.raw('CURRENT_TIMESTAMP'));
+    table.text('created_at').notNullable().defaultTo(timestampDefault);
+    table.text('updated_at').notNullable().defaultTo(timestampDefault);
     table.check('price_cents >= 0');
     table.check('is_active IN (0, 1)');
     table.index('name', 'idx_products_name');
@@ -36,8 +40,8 @@ export async function up(knex) {
     table.increments('id').primary();
     table.integer('customer_id').notNullable().references('id').inTable('customers').onDelete('CASCADE');
     table.integer('product_id').notNullable().references('id').inTable('products').onDelete('CASCADE');
-    table.text('created_at').notNullable().defaultTo(knex.raw('CURRENT_TIMESTAMP'));
-    table.text('updated_at').notNullable().defaultTo(knex.raw('CURRENT_TIMESTAMP'));
+    table.text('created_at').notNullable().defaultTo(timestampDefault);
+    table.text('updated_at').notNullable().defaultTo(timestampDefault);
     table.unique(['customer_id', 'product_id'], 'uq_favorite_products_customer_product');
     table.index('customer_id', 'idx_favorite_products_customer_id');
     table.index('product_id', 'idx_favorite_products_product_id');
@@ -48,8 +52,8 @@ export async function up(knex) {
     table.text('mood_name').notNullable().unique();
     table.text('associated_color').notNullable();
     table.text('description');
-    table.text('created_at').notNullable().defaultTo(knex.raw('CURRENT_TIMESTAMP'));
-    table.text('updated_at').notNullable().defaultTo(knex.raw('CURRENT_TIMESTAMP'));
+    table.text('created_at').notNullable().defaultTo(timestampDefault);
+    table.text('updated_at').notNullable().defaultTo(timestampDefault);
     table.index('mood_name', 'idx_moods_mood_name');
     table.index('associated_color', 'idx_moods_associated_color');
   });
